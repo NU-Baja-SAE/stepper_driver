@@ -16,7 +16,6 @@
 
 
 
-
 SPIClass * vspi = NULL;
 
 static const int spiClk = 1000000;  // 1 MHz
@@ -95,7 +94,8 @@ uint16_t spi_readRegister(SPIClass *spi, uint8_t address)
 }
 
 
-void setup() {
+void setup() 
+{
   Serial.begin(115200);
 
   //initialise the SPIClass
@@ -146,6 +146,26 @@ void setup() {
   Serial.print("CTRL2 Register: 0x");
   Serial.println(ctrl2Reg, HEX);
 
+  // enable open load detection
+  uint16_t ctrl9 = spi_readRegister(vspi, SPI_CTRL9);
+  Serial.print("CTRL9 Register before OLD set: 0x");
+  Serial.println(ctrl9, HEX);
+  ctrl9 |= OLD_MASK; // set OLD bit
+  spi_writeRegister(vspi, SPI_CTRL9, ctrl9);
+
+  // read CTRL11 to make sure torque setting is correct
+  uint16_t ctrl11Reg = spi_readRegister(vspi, SPI_CTRL11);
+  Serial.print("CTRL11 Register: 0x");
+  Serial.println(ctrl11Reg, HEX);
+
+  // Use internal Vref
+  uint16_t ctrl13 = spi_readRegister(vspi, SPI_CTRL13);
+  Serial.print("CTRL13 Register before VREF set: 0x");
+  Serial.println(ctrl13, HEX);
+  ctrl13 |= VREF_MASK; // set VREF bit
+  spi_writeRegister(vspi, SPI_CTRL13, ctrl13);
+
+
 
   // enable the driver
   uint16_t ctrl1 = spi_readRegister(vspi, SPI_CTRL1);
@@ -159,25 +179,28 @@ void setup() {
   Serial.println(ctrl1, HEX);
 
   digitalWrite(ENABLE_PIN, HIGH);   // enable the driver
-  
+
+
+
 }
 
-void loop() {
+void loop() 
+{
   // put your main code here, to run repeatedly:
-  // toggle step pin
-  digitalWrite(STEP_PIN, HIGH);
-  delayMicroseconds(500);
-  digitalWrite(STEP_PIN, LOW);
-  delayMicroseconds(500);
-  delay(100);
-  // read the fault register
-  uint16_t faultReg = spi_readRegister(vspi, SPI_FAULT);
-  // read the index register
-  Serial.print("Fault Register: 0x");
-  Serial.print(faultReg, HEX);
+  // // toggle step pin
+  // digitalWrite(STEP_PIN, HIGH);
+  // delayMicroseconds(500);
+  // digitalWrite(STEP_PIN, LOW);
+  // delayMicroseconds(500);
+  // delay(100);
+  // // read the fault register
+  // uint16_t faultReg = spi_readRegister(vspi, SPI_FAULT);
+  // // read the index register
+  // Serial.print("Fault Register: 0x");
+  // Serial.print(faultReg, HEX);
 
-  uint16_t indexReg = spi_readRegister(vspi, SPI_INDEX1);
-  Serial.print(" | Index1 Register: 0x");
-  Serial.println(indexReg, HEX);
+  // uint16_t indexReg = spi_readRegister(vspi, SPI_INDEX1);
+  // Serial.print(" | Index1 Register: 0x");
+  // Serial.println(indexReg, HEX);
 }
 

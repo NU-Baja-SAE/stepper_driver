@@ -191,6 +191,12 @@
 #define TRQ_COUNT_MASK_MSB    (0x0F)        // Torque Count Upper 4-bits
 #define REV_ID_MASK           (0xF0)        // Silicon Revision ID
 
+// Register 0x0C : CTRL9 Register
+#define OLD_MASK              (0x80)        // Open Load Detection Enable
+
+// Register 0x10 : CTRL13 Register
+#define VREF_MASK             (0x02)        // Voltage Reference Setting
+
 // Structure variables for the DRV8xx2 registers
 typedef struct DRV8xx2_REG
 {
