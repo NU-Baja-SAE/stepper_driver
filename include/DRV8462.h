@@ -3,6 +3,9 @@
 #include "driver/rmt.h"  // for step pulse generation using RMT peripheral
 #include "soc/rmt_reg.h" // for RMT register definitions
 
+#include "drv8xx2-RegMap.h"
+// #include "drv8xx2.h"
+
 #define RMT_CHANNEL RMT_CHANNEL_0
 #define MAX_PULSES 1000 // maximum number of pulses to send in one batch (adjust as needed)
 
@@ -16,6 +19,7 @@ public:
     void moveSteps(int steps, int speed_hz);
     void stop();
     uint16_t readFault();
+    void faultDetected();
 
 private:
     rmt_item32_t pulse_buf[MAX_PULSES];
@@ -23,5 +27,4 @@ private:
     void spiWriteRegister(uint8_t address, uint16_t data);
     uint16_t spiReadRegister(uint8_t address);
     void setupRMT();
-    void faultDetected();
 };

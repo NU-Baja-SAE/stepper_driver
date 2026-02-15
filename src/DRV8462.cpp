@@ -1,9 +1,6 @@
 #include "DRV8462.h"
 #include "pins.h"
 
-#include "drv8xx2-RegMap.h"
-#include "drv8xx2.h"
-
 // SPI Protocol
 #define SPI_ADDRESS_MASK 0x3F00 // Mask for SPI register address bits
 #define SPI_ADDRESS_POS 8       // Position for SPI register address bits
@@ -25,10 +22,19 @@ void DRV8462::begin()
 {
 
     this->spi->begin(SPI_SCK_PIN, SPI_SDO_PIN, SPI_SDI_PIN, SPI_nSCS_PIN);
-    pinMode(STEP_PIN, OUTPUT);
-    pinMode(DIR_PIN, OUTPUT);
+    
+    pinMode(nSLEEP_PIN, OUTPUT);
     pinMode(ENABLE_PIN, OUTPUT);
-    digitalWrite(ENABLE_PIN, LOW); // Disable the driver initially
+    pinMode(DIR_PIN, OUTPUT);
+    pinMode(STEP_PIN, OUTPUT);
+    pinMode(SPI_nSCS_PIN, OUTPUT);
+
+    digitalWrite(nSLEEP_PIN, HIGH);   // Wake up the driver
+    digitalWrite(SPI_nSCS_PIN, HIGH); // Set SS high
+    // wait t_wake = 1.5 ms
+    delayMicroseconds(2000);
+    digitalWrite(ENABLE_PIN, LOW); // disable the driver
+    
     this->setupRMT();
 
     // Read fault register
@@ -163,20 +169,15 @@ uint16_t DRV8462::spiReadRegister(uint8_t address)
 
 void DRV8462::faultDetected()
 {
-    Serial.println("Fault detected! Halting execution.");
-    // disable the driver to prevent damage
-    digitalWrite(ENABLE_PIN, LOW);
+    // Serial.println("Fault detected! Halting execution.");
+    // // disable the driver to prevent damage
+    // digitalWrite(ENABLE_PIN, LOW);
 
-    // read fault register
-    uint16_t faultReg = this->spiReadRegister(SPI_FAULT);
-    Serial.print("Fault Register: 0x");
-    Serial.println(faultReg, HEX);
+    // // read fault register
+    // uint16_t faultReg = this->spiReadRegister(SPI_FAULT);
+    // Serial.print("Fault Register: 0x");
+    // Serial.println(faultReg, HEX);
 
-    while (true)
-    {
-        // Optionally, you could add code here to attempt to clear the fault or reset the driver
-        delay(1000);
-    }
 }
 
 void DRV8462::disable()
@@ -244,3 +245,4 @@ void DRV8462::moveSteps(int steps, int speed_hz)
     // Send the items (this is non-blocking)
     rmt_write_items(RMT_CHANNEL, this->pulse_buf, steps, false);
 }
+

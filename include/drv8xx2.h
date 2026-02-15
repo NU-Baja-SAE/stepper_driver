@@ -381,21 +381,21 @@ typedef struct DRV82x2_DRV89x2_Device_Obj_t
 } DRV82x2_DRV89x2_Device_Obj_t;    // Starting address 0x6380 total 52 bytes
 
 // Utility variables
-volatile uint16_t Device_ID;
-volatile unsigned char timerUpdate;
-volatile unsigned char pwmState1;
-volatile unsigned char pwmState2;
-volatile unsigned char pwmState3;
-volatile unsigned char pwmState4;
-volatile float VREF1_previous;
-volatile float VREF2_previous;
-volatile unsigned int ipropi1;
-volatile unsigned int ipropi2;
-volatile unsigned int ipropi3;
-volatile unsigned int ipropi4;
-volatile int ADC12offset;
-volatile unsigned char ADC12offsetpositive;
-volatile unsigned char ADC12offsetnegative;
+// volatile uint16_t Device_ID;
+// volatile unsigned char timerUpdate;
+// volatile unsigned char pwmState1;
+// volatile unsigned char pwmState2;
+// volatile unsigned char pwmState3;
+// volatile unsigned char pwmState4;
+// volatile float VREF1_previous;
+// volatile float VREF2_previous;
+// volatile unsigned int ipropi1;
+// volatile unsigned int ipropi2;
+// volatile unsigned int ipropi3;
+// volatile unsigned int ipropi4;
+// volatile int ADC12offset;
+// volatile unsigned char ADC12offsetpositive;
+// volatile unsigned char ADC12offsetnegative;
 
 /******************************************************************************
  * EXTERN DECLARATIONS
