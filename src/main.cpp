@@ -5,6 +5,12 @@
 #include "pins.h"
 
 #include <SPI.h>
+#include "driver/mcpwm.h" // for velocity control using MCPWM peripheral
+#include "driver/rmt.h" // for step pulse generation using RMT peripheral
+
+#define RMT_CHANNEL   RMT_CHANNEL_0
+
+
 
 // SPI Protocol
 #define SPI_ADDRESS_MASK 0x3F00 // Mask for SPI register address bits
@@ -14,6 +20,7 @@
 #define SPI_RW_BIT_MASK 0x4000  // Mask for SPI register read write indication bit
 
 SPIClass *vspi = NULL;
+
 
 static const int spiClk = 1000000; // 1 MHz
 
@@ -49,7 +56,7 @@ uint16_t spi_writeRegister(SPIClass *spi, uint8_t address, uint16_t data)
 
   uint8_t dataMSB = (received >> 8) & 0xFF;
 
-    // check that first 2 bits are set
+  // check that first 2 bits are set
   if ((dataMSB & 0xC0) != 0xC0)
   {
     Serial.println("SPI write error: invalid response header!");
@@ -63,6 +70,74 @@ uint16_t spi_writeRegister(SPIClass *spi, uint8_t address, uint16_t data)
   }
 
   return 0;
+}
+
+void setup_mcpwm() {
+    // 1. Initialize the GPIO
+    mcpwm_gpio_init(MCPWM_UNIT_0, MCPWM0A, STEP_PIN);
+
+    // 2. Configure the Timer
+    mcpwm_config_t pwm_config;
+    pwm_config.frequency = 1000;         // Start at 1kHz
+    pwm_config.cmpr_a = 50.0;            // 50% duty cycle
+    pwm_config.counter_mode = MCPWM_UP_COUNTER;
+    pwm_config.duty_mode = MCPWM_DUTY_MODE_0;
+
+    mcpwm_init(MCPWM_UNIT_0, MCPWM_TIMER_0, &pwm_config);
+}
+
+void set_stepper_speed(float freq_hz) {
+    if (freq_hz <= 0) {
+        // Stop the pulses
+        mcpwm_set_duty(MCPWM_UNIT_0, MCPWM_TIMER_0, MCPWM_OPR_A, 0);
+    } else {
+        mcpwm_set_frequency(MCPWM_UNIT_0, MCPWM_TIMER_0, freq_hz);
+        mcpwm_set_duty(MCPWM_UNIT_0, MCPWM_TIMER_0, MCPWM_OPR_A, 50.0);
+    }
+}
+
+void setup_rmt_stepper() {
+    rmt_config_t config;
+    config.rmt_mode = RMT_MODE_TX;
+    config.channel = RMT_CHANNEL;
+    config.gpio_num = (gpio_num_t)STEP_PIN;
+    config.mem_block_num = 1;
+    config.clk_div = 80; // 80MHz / 80 = 1MHz resolution (1 tick = 1 microsecond)
+    config.tx_config.loop_en = false;
+    config.tx_config.carrier_en = false;
+    config.tx_config.idle_level = RMT_IDLE_LEVEL_LOW;
+    config.tx_config.idle_output_en = true;
+
+    rmt_config(&config);
+    rmt_driver_install(RMT_CHANNEL, 0, 0);
+}
+
+void move_steps_rmt(uint32_t steps, uint32_t speed_hz) {
+    if (steps == 0) return;
+
+    // Calculate pulse duration in microseconds
+    // For a 50% duty cycle: Period = 1,000,000 / speed_hz
+    uint32_t duration_us = 1000000 / speed_hz / 2;
+    
+    // Limit duration to RMT max (15-bit value, max 32767)
+    if (duration_us > 32767) duration_us = 32767;
+
+    // Create the pulse item: High for duration_us, Low for duration_us
+    rmt_item32_t pulse = {{{ (uint16_t)duration_us, 1, (uint16_t)duration_us, 0 }}};
+    
+    // Allocate a buffer for the steps
+    rmt_item32_t* items = (rmt_item32_t*) malloc(sizeof(rmt_item32_t) * steps);
+    for (int i = 0; i < steps; i++) {
+        items[i] = pulse;
+    }
+
+    // Send the items (this is non-blocking)
+    rmt_write_items(RMT_CHANNEL, items, steps, false);
+    
+    // // Wait for transmission to finish (optional, makes this function blocking)
+    // rmt_wait_tx_done(RMT_CHANNEL, portMAX_DELAY);
+
+    free(items);
 }
 
 // This SPI function is used to read the device configurations, parameters and
@@ -154,6 +229,11 @@ void setup()
   Serial.print("CTRL2 Register: 0x");
   Serial.println(ctrl2Reg, HEX);
 
+  // read CTRL3
+  uint16_t ctrl3Reg = spi_readRegister(vspi, SPI_CTRL3);
+  Serial.print("CTRL3 Register: 0x");
+  Serial.println(ctrl3Reg, HEX);
+
   // enable open load detection
   uint16_t ctrl9 = spi_readRegister(vspi, SPI_CTRL9);
   Serial.print("CTRL9 Register before OLD set: 0x");
@@ -161,10 +241,28 @@ void setup()
   ctrl9 |= OLD_MASK; // set OLD bit
   spi_writeRegister(vspi, SPI_CTRL9, ctrl9);
 
+  // write to CTRL10 to set idle current to 10% (0.1 * 255 = 25.5 ~ 26)
+  spi_writeRegister(vspi, SPI_CTRL10, 26); // set idle current to 10%
+  // read CTRL10 to make sure idle current setting is correct
+  uint16_t ctrl10Reg = spi_readRegister(vspi, SPI_CTRL10);
+  Serial.print("CTRL10 Register: 0x");
+  Serial.println(ctrl10Reg, HEX);
+
+  // write to CTRL11 to set current to 10% (0.1 * 255 = 25.5 ~ 26)
+  spi_writeRegister(vspi, SPI_CTRL11, 26); // set torque to 10%
+
   // read CTRL11 to make sure torque setting is correct
   uint16_t ctrl11Reg = spi_readRegister(vspi, SPI_CTRL11);
   Serial.print("CTRL11 Register: 0x");
   Serial.println(ctrl11Reg, HEX);
+
+  // if torque setting is incorrect, do not proceed
+  if (ctrl11Reg != 26)
+  {
+    Serial.println("Torque setting failed, halting!");
+    while (1)
+      ;
+  }
 
   // Use internal Vref
   uint16_t ctrl13 = spi_readRegister(vspi, SPI_CTRL13);
@@ -173,56 +271,60 @@ void setup()
   ctrl13 |= VREF_MASK; // set VREF bit
   spi_writeRegister(vspi, SPI_CTRL13, ctrl13);
 
-  digitalWrite(ENABLE_PIN, HIGH); // enable the driver
   delayMicroseconds(2000);        // wait t_en = 500 us
+  digitalWrite(ENABLE_PIN, HIGH); // enable the driver
+  delay(1000);                     // wait t_en = 500 us
 
   // enable the driver
-  uint16_t ctrl1 = spi_readRegister(vspi, SPI_CTRL1);
+  ctrl1Reg = spi_readRegister(vspi, SPI_CTRL1);
   Serial.print("CTRL1 Register before EN_OUT set: 0x");
-  Serial.println(ctrl1, HEX);
-  ctrl1 |= EN_OUT_MASK; // set EN_OUT bit
-  spi_writeRegister(vspi, SPI_CTRL1, ctrl1);
+  Serial.println(ctrl1Reg, HEX);
+  ctrl1Reg |= EN_OUT_MASK; // set EN_OUT bit
+  spi_writeRegister(vspi, SPI_CTRL1, ctrl1Reg);
 
   // read the fault register
   faultReg = spi_readRegister(vspi, SPI_FAULT);
   Serial.print("Fault Register: 0x");
   Serial.println(faultReg, HEX);
 
-  // delay(10);
-
-  ctrl1 = spi_readRegister(vspi, SPI_CTRL1);
+  ctrl1Reg = spi_readRegister(vspi, SPI_CTRL1);
   Serial.print("CTRL1 Register after EN_OUT set: 0x");
-  Serial.println(ctrl1, HEX);
+  Serial.println(ctrl1Reg, HEX);
 
-  delay(10);
 
-  ctrl1 = spi_readRegister(vspi, SPI_CTRL1);
-  Serial.print("CTRL1 Register after 1s: 0x");
-  Serial.println(ctrl1, HEX);
+  setup_rmt_stepper();
+
 }
+
+
+#define LOOP_DELAY_MS 10
+#define SINE_FREQ_HZ 2 // Frequency of sine wave in Hz
+#define SINE_AMPLITUDE 750 // Amplitude of sine wave in steps
 
 void loop()
 {
+  static unsigned long faultTimer = 0;
+  faultTimer += 1;
+  if (faultTimer > 1000) {
+    uint16_t faultReg = spi_readRegister(vspi, SPI_FAULT);
+    Serial.print("Fault Register: 0x");
+    Serial.println(faultReg, HEX);
+    faultTimer = 0;
+  }
 
-  // read the fault register
-  uint16_t faultReg = spi_readRegister(vspi, SPI_FAULT);
-  Serial.print("Fault Register: 0x");
-  Serial.print(faultReg, HEX);
+  static float pos = 0.0;
+  static int previous_pos = 0;
 
-  // read the index register
-  uint16_t indexReg = spi_readRegister(vspi, SPI_INDEX1);
-  Serial.print(" | Index1 Register: 0x");
-  Serial.print(indexReg, HEX);
+  pos = sin(2 * PI * SINE_FREQ_HZ * millis() / 1000.0) * SINE_AMPLITUDE;
+  int steps = (int)pos - (int)previous_pos;
+  previous_pos = pos;
+  int speed_hz = abs(steps) / (LOOP_DELAY_MS / 1000.0); // steps per second
 
-  // read the CTRL1 register
-  uint16_t ctrl1Reg = spi_readRegister(vspi, SPI_CTRL1);
-  Serial.print(" | CTRL1 Register: 0x");
-  Serial.println(ctrl1Reg, HEX);
+  Serial.printf(">Pos:%.2f\n>Steps:%d\n>Speed:%d\n", pos, steps, speed_hz);
 
-  delay(1000);
-  // put your main code here, to run repeatedly:
-  // toggle step pin
-  digitalWrite(STEP_PIN, HIGH);
-  delay(1);
-  digitalWrite(STEP_PIN, LOW);
+  move_steps_rmt(abs(steps),speed_hz ); // Move at 1kHz
+  digitalWrite(DIR_PIN, steps >= 0 ? HIGH : LOW); // Set direction
+
+  delay(LOOP_DELAY_MS);
+
 }

@@ -16,4 +16,7 @@
 #define DIR_PIN             13    // GPIO17: DIR control
 #define STEP_PIN            16    // GPIO16: STEP control
 
+
+#define STEPS_PER_REVOLUTION 200 // 1.8 degree step angle = 200 steps per revolution
+
 #endif // PINS_H_h
