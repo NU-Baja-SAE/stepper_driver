@@ -45,30 +45,30 @@ void DRV8462::begin()
         this->faultDetected();
     }
 
-    // enable open load detection
-    uint16_t ctrl9 = this->spiReadRegister(SPI_CTRL9);
-    ctrl9 |= OLD_MASK; // set OLD bit
-    this->spiWriteRegister(SPI_CTRL9, ctrl9);
+    // // enable open load detection
+    // uint16_t ctrl9 = this->spiReadRegister(SPI_CTRL9);
+    // ctrl9 |= OLD_MASK; // set OLD bit
+    // this->spiWriteRegister(SPI_CTRL9, ctrl9);
 
-    // write to CTRL10 to set idle current to 10% (0.1 * 255 = 25.5 ~ 26)
-    this->spiWriteRegister(SPI_CTRL10, 26); // set idle current to 10%
-    // read CTRL10 to make sure idle current setting is correct
-    uint16_t ctrl10Reg = this->spiReadRegister(SPI_CTRL10);
-    if (ctrl10Reg != 26)
-    {
-        Serial.printf("Failed to set idle current! CTRL10 Register: 0x%X\n", ctrl10Reg);
-        this->faultDetected();
-    }
+    // // write to CTRL10 to set idle current to 10% (0.1 * 255 = 25.5 ~ 26)
+    // this->spiWriteRegister(SPI_CTRL10, 26); // set idle current to 10%
+    // // read CTRL10 to make sure idle current setting is correct
+    // uint16_t ctrl10Reg = this->spiReadRegister(SPI_CTRL10);
+    // if (ctrl10Reg != 26)
+    // {
+    //     Serial.printf("Failed to set idle current! CTRL10 Register: 0x%X\n", ctrl10Reg);
+    //     this->faultDetected();
+    // }
 
-    // write to CTRL11 to set current to 10% (0.1 * 255 = 25.5 ~ 26)
-    this->spiWriteRegister(SPI_CTRL11, 26); // set torque to 10%
-    // read CTRL11 to make sure torque setting is correct
-    uint16_t ctrl11Reg = this->spiReadRegister(SPI_CTRL11);
-    if (ctrl11Reg != 26)
-    {
-        Serial.printf("Failed to set torque! CTRL11 Register: 0x%X\n", ctrl11Reg);
-        this->faultDetected();
-    }
+    // // write to CTRL11 to set current to 10% (0.1 * 255 = 25.5 ~ 26)
+    // this->spiWriteRegister(SPI_CTRL11, 26); // set torque to 10%
+    // // read CTRL11 to make sure torque setting is correct
+    // uint16_t ctrl11Reg = this->spiReadRegister(SPI_CTRL11);
+    // if (ctrl11Reg != 26)
+    // {
+    //     Serial.printf("Failed to set torque! CTRL11 Register: 0x%X\n", ctrl11Reg);
+    //     this->faultDetected();
+    // }
 
     // Use internal Vref
     uint16_t ctrl13 = this->spiReadRegister(SPI_CTRL13);

@@ -6,7 +6,6 @@
 
 DRV8462 stepper;
 
-
 void setup()
 {
     Serial.begin(115200);
@@ -17,56 +16,54 @@ void setup()
 
     Serial.println("Starting stepper control...");
     stepper.enable();
-   
-}
 
-#define LOOP_DELAY_MS 10
-#define SINE_FREQ_HZ 0.25  // Frequency of sine wave in Hz
-#define SINE_AMPLITUDE 750 // Amplitude of sine wave in steps
+    //   Write 1b to ATQ_EN
+    // • Run the motor with no load
+    // • Program ATQ_LRN_MIN_CURRENT
+    // • Program ATQ_LRN_STEP
+    // • Program ATQ_LRN_CYCLE_SELECT
+    // • Write 1b to ATQ_LRN_START
+    // • The algorithm runs the motor with initial current level for ATQ_LRN_CYCLE_SELECT number of electrical
+    // half cycles
+    // • Next, the algorithm runs the motor with final current level for ATQ_LRN_CYCLE_SELECT number of
+    // electrical half cycles
+    // • After learning is complete,
+    // – ATQ_LRN_START bit is auto cleared to 0b
+    // – ATQ_LRN_DONE bit becomes 1b
+    // • ATQ_LRN_CONST1 and ATQ_LRN_CONST2 are populated in their respective registers
+    // • Motor current goes to ATQ_TRQ_MAX
+
+    uint16_t atqLrnCtrl10 = stepper.spiReadRegister(SPI_ATQ_CTRL10);
+    atqLrnCtrl10 |= 0b10000000; // set ATQ_EN bit
+    stepper.spiWriteRegister(SPI_ATQ_CTRL10, atqLrnCtrl10);
+
+    uint16_t atqLrnCtrl15 = stepper.spiReadRegister(SPI_ATQ_CTRL15);
+    atqLrnCtrl15 |= 0b00001000; // clear ATQ
+    stepper.spiWriteRegister(SPI_ATQ_CTRL15, atqLrnCtrl15); // set ATQ_LRN_STEP to 16 and ATQ_LRN_CYCLE_SELECT to 8
+
+    atqLrnCtrl10 = stepper.spiReadRegister(SPI_ATQ_CTRL10);
+    atqLrnCtrl10 |= 0b01000000; // set ATQ_EN and LRN_START bits
+    stepper.spiWriteRegister(SPI_ATQ_CTRL10, atqLrnCtrl10);
+
+    stepper.spiWriteRegister(SPI_ATQ_CTRL15, 0x88); // set ATQ_EN bit to start auto torque learning
+}
 
 void loop()
 {
-    static unsigned long faultTimer = 0;
-    faultTimer += 1;
-    if (faultTimer > 1000)
+    // read DIAG2 register to check for LRN_DONE bit
+    uint16_t diag2Reg = stepper.spiReadRegister(SPI_DIAG2);
+    if (diag2Reg & ATQ_LRN_DONE_MASK)
     {
-        uint16_t faultReg = stepper.readFault();
-        if (faultReg != 0)
+        Serial.println("Auto Torque Learning complete!");
+        // read ATQ_LRN_CONST1 and ATQ_LRN_CONST2 registers
+        uint16_t atqLrnConst1 = stepper.spiReadRegister(SPI_ATQ_CTRL8);
+        uint16_t atqLrnConst2 = stepper.spiReadRegister(SPI_ATQ_CTRL9);
+        Serial.printf("ATQ_LRN_CONST1: 0x%X\n", atqLrnConst1);
+        Serial.printf("ATQ_LRN_CONST2: 0x%X\n", atqLrnConst2);
+        // stop the motor after learning is complete
+        stepper.stop();
+        while (true)
         {
-            Serial.printf("Fault detected! Fault Register: 0x%X\n", faultReg);
-            stepper.faultDetected();
-        }
-        faultTimer = 0;
-    }
-
-    static float pos = 0.0;
-    static int previous_pos = 0;
-
-    pos = sin(2 * PI * SINE_FREQ_HZ * millis() / 1000.0) * SINE_AMPLITUDE;
-    int steps = (int)pos - (int)previous_pos;
-    previous_pos = pos;
-    int speed_hz = abs(steps) / ((LOOP_DELAY_MS ) / 1000.0); // steps per second
-
-    Serial.printf(">Pos:%.2f\n>Steps:%d\n>Speed:%d\n", pos, steps, speed_hz);
-
-    stepper.moveSteps(abs(steps), speed_hz);
-    digitalWrite(DIR_PIN, steps >= 0 ? HIGH : LOW); // Set direction
-
-    delay(LOOP_DELAY_MS);
-
-    // check status of rmt
-    esp_err_t rmt_status = rmt_wait_tx_done(RMT_CHANNEL, 0); // check if transmission is done (non-blocking)
-    if (rmt_status == ESP_ERR_TIMEOUT)
-    {
-        Serial.println("RMT transmission still in progress...");
-    }
-    else if (rmt_status == ESP_OK)
-    {
-        Serial.println("RMT transmission completed.");
-    }
-    else
-    {
-        Serial.printf("RMT error: %d\n", rmt_status);
+        } // halt execution
     }
 }
-

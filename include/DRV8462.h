@@ -20,11 +20,11 @@ public:
     void stop();
     uint16_t readFault();
     void faultDetected();
+    void spiWriteRegister(uint8_t address, uint16_t data);
+    uint16_t spiReadRegister(uint8_t address);
 
 private:
     rmt_item32_t pulse_buf[MAX_PULSES];
     SPIClass *spi;
-    void spiWriteRegister(uint8_t address, uint16_t data);
-    uint16_t spiReadRegister(uint8_t address);
     void setupRMT();
 };
