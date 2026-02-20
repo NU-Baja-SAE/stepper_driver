@@ -39,6 +39,7 @@ void DRV8462::begin()
 
     // Read fault register
     uint16_t faultReg = this->spiReadRegister(SPI_FAULT);
+    Serial.printf("Initial Fault Register: 0x%X\n", faultReg);
     if (faultReg != 0)
     {
         Serial.printf("Fault detected on startup! Fault Register: 0x%X\n", faultReg);
@@ -50,6 +51,8 @@ void DRV8462::begin()
     ctrl9 |= OLD_MASK; // set OLD bit
     this->spiWriteRegister(SPI_CTRL9, ctrl9);
 
+    Serial.printf("ctrl9Reg: 0x%X\n", this->spiReadRegister(SPI_CTRL9));
+
     // write to CTRL10 to set idle current to 10% (0.1 * 255 = 25.5 ~ 26)
     this->spiWriteRegister(SPI_CTRL10, 26); // set idle current to 10%
     // read CTRL10 to make sure idle current setting is correct
@@ -59,6 +62,8 @@ void DRV8462::begin()
         Serial.printf("Failed to set idle current! CTRL10 Register: 0x%X\n", ctrl10Reg);
         this->faultDetected();
     }
+
+    Serial.printf("ctrl10Reg: 0x%X\n", this->spiReadRegister(SPI_CTRL10)); 
 
     // write to CTRL11 to set current to 10% (0.1 * 255 = 25.5 ~ 26)
     this->spiWriteRegister(SPI_CTRL11, 26); // set torque to 10%
