@@ -180,6 +180,7 @@ void DRV8462::faultDetected()
 
 }
 
+
 void DRV8462::disable()
 {
     uint16_t ctrl1Reg = this->spiReadRegister(SPI_CTRL1);
